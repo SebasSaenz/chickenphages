@@ -1,0 +1,10 @@
+name: chickenphages
+  channels:
+    - base
+    - conda-forge
+    - bioconda
+    - R
+  dependencies:
+  - r-base=4.3.3
+  - r-tidyverse=2.0.0
+  
