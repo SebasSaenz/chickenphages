@@ -1,5 +1,6 @@
 data/
-/workflows/*.ipynb_checkpoints/
+/workflows/.ipynb_checkpoints
+**/.ipynb_checkpoints
 
 
 # Macbook
@@ -54,5 +55,4 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
-/workflows/.ipynb_checkpoints
-/workflows/.ipynb_checkpoints
+
