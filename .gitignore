@@ -1,4 +1,8 @@
-data/
+data/**
+plots/**
+output/**
+output_clean/**
+
 /workflows/.ipynb_checkpoints
 **/.ipynb_checkpoints
 
@@ -9,7 +13,7 @@ data/
 # History files
 .Rhistory
 .Rapp.history
-
+*.Rproj
 # Session Data files
 .RData
 .RDataTmp
