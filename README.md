@@ -2,7 +2,7 @@
 
 This repository contains the supporting code for the manuscript **"A metagenomic collection of 19,778 viruses reveals the diverse virome of the chicken gut"**
 
-Johan S. Sáenz^1,2,^, Timur Yergaliyev^1,2^,  Bibiana Rios-Galicia^1,2^,  Jana Seifert^1,2^  & Amélia Camarinha-Silva^1,2^
+Johan S. Sáenz^1,2^, Timur Yergaliyev^1,2^, Bibiana Rios-Galicia^1,2^, Jana Seifert^1,2^ & Amélia Camarinha-Silva^1,2^
 
 ^1^Institute of Animal Science, University of Hohenheim, Emil-Wolff-Str. 6-10, 70593 Stuttgart, Germany
 
@@ -14,7 +14,15 @@ The collection of 47,092 viral genomes and the 19,778 dereplicated species-level
 
 ## Sample summary
 
+In total we collected 1,514 chicken gut metagenomic samples from 15 different countries, including samples from faeces and 6 gut regions.
+
+![](plots_repo/summary_samples.png)
+
 ## Workflow
+
+Data was analyse using the High Performance and Cloud Computing BINAC at the Zentrum für Datenverarbeitung of the University of Tübingen, at the state of Baden-Württemberg, Germany.
+
+Bioinformatic tools were installed using Conda or Mamba.
 
 ### Table of Contents
 
@@ -33,6 +41,8 @@ The collection of 47,092 viral genomes and the 19,778 dereplicated species-level
 
 ## Download metagenomic samples {#download-metagenomic-samples}
 
+Samples were download using the [SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID provided in the [metadata data-frame](https://github.com/SebasSaenz/chickenphages/tree/main/data_availability). Requesting more than 1 thread can crash the process. Sa
+
 ```         
 prefetch sample_id -O sra_temp --verify yes --max-size 50G
 
@@ -43,16 +53,39 @@ fasterq-dump sra_temp/sample_id --split-files --outdir out_dir --threads 1
 
 ```         
 # Create a QC report
-fastqc -q -t {THREADS} -o $preQC -f fastq $RR1 $RR2
 
+fastqc \
+  -q \
+  -t {THREADS} \
+  -o {OUTPUT_DIR} \
+  -f fastq \
+  {READ1} \
+  {READ2}
+  
 # Create index
-bowtie2-build {refer} {index} --threads {THREADS}
 
+bowtie2-build \
+  --threads {THREADS} \
+  {REFERENCE_FASTA} \
+  {INDEX_PREFIX}
+  
 # Read QC and host DNA removal
-trim_galore --paired $WS/$RR1 $WS/$RR2 -j {THREADS}
 
+trim_galore \
+  --paired \
+  -j {THREADS} \
+  {READ1} \
+  {READ2}
+  
 # Remove host DNA
-bowtie2 -p {THREADS} -x $ind_host -1 $WS/$outdir/*_val_1.f*q.gz -2 $WS/$outdir/*_val_2.f*q.gz \--un-conc-gz $WS/$outdir/no_host > $WS/$outdir/host.sam
+
+bowtie2 \
+  -p {THREADS} \
+  -x {INDEX_DIR}/host \
+  -1 {READS_DIR}/*_val_1.fq.gz \
+  -2 {READS_DIR}/*_val_2.fq.gz \
+  --un-conc-gz {OUTPUT_DIR}/no_host \
+  > {OUTPUT_DIR}/host.sam
 ```
 
 ## Assembly and filtering {#assembly-and-filtering}
