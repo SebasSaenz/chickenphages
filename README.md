@@ -39,9 +39,11 @@ Bioinformatic tools were installed using Conda or Mamba.
 
 ------------------------------------------------------------------------
 
-## Download metagenomic samples {#download-metagenomic-samples}
+## Download metagenomic samples 
 
 Samples were download using the [SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID provided in the [metadata data-frame](https://github.com/SebasSaenz/chickenphages/tree/main/data_availability). Requesting more than 1 thread can crash the process.
+
+This pipeline retrieves raw sequencing data from the SRA and converts it to FASTQ format. Prefetch downloads the .sra file to a temporary directory (sra_temp), with integrity verification and a file size limit of 50 GB. fasterq-dump converts the .sra file into paired-end FASTQ files, saved in fastq_files.
 
 ```         
 prefetch \
@@ -57,10 +59,12 @@ fasterq-dump \
   --threads 4
 ```
 
-## Quality control and host removal {#quality-control-and-host-removal}
+## Quality control and host removal
+
+This step assess read quality, trim low-quality bases and adapters, and remove host-derived sequences using the reference genome.
 
 ```         
-# Create a QC report
+# Generates a comprehensive report on the quality of raw reads (e.g., per-base quality, GC content, duplication levels).
 
 fastqc \
   -q \
@@ -70,14 +74,14 @@ fastqc \
   reads/sample_R1.fq.gz \
   reads/sample_R2.fq.gz
   
-# Create index
+# Creates an index from the host reference genome for downstream alignment and filtering.
 
 bowtie2-build \
   --threads 8 \
   reference_genome.fasta \
   index/host
   
-# Read QC and host DNA removal
+# Removes adapters and trims low-quality bases from both ends of paired-end reads.
 
 trim_galore \
   --paired \
@@ -85,7 +89,7 @@ trim_galore \
   reads/sample_R1.fq.gz \
   reads/sample_R2.fq.gz
   
-# Remove host DNA
+# Aligns trimmed reads to the host genome. Only unmapped reads (i.e. likely microbial or viral) are retained for downstream analysis.
 
 bowtie2 \
   -p 8 \
@@ -96,10 +100,11 @@ bowtie2 \
   > out_dir/host.sam
 ```
 
-## Assembly and filtering {#assembly-and-filtering}
+## Assembly and filtering
 
+This step assemble metagenomic reads and filtered out short contigs that are typically less informative for downstream analyses like binning, annotation, or viral detection.
 ```         
-# Create the assemblies
+# Uses MEGAHIT to assemble high-quality paired-end reads into contigs using parameters optimized for complex microbial communities.
 
 megahit \
   -1 clean_reads/sample_R1.fq.gz \
@@ -108,7 +113,7 @@ megahit \
   -t 8 \
   --presets meta-sensitive
   
-# Filter contigs shorter than 5kb
+# Removes contigs below 5,000 bp using bbduk.sh to retain higher-confidence scaffolds for further analysis (e.g. viral prediction, binning).
 
 bbduk.sh \
   in=megahit_results/sample_contigs.fasta \
@@ -116,13 +121,12 @@ bbduk.sh \
   minlen=5000
 ```
 
-## Virus identification and quality {#virus-identification-and-quality}
+## Virus identification and quality
 
---cleanup: removes intermediate files to save space. --conservative: uses stricter thresholds for virus identification. genomad-db must be downloaded and the path correctly specified.
-
-`checkv end_to_end` performs quality assessment and completeness estimation of viral genomes. Ensure the CheckV database is downloaded and path is correctly set. Input FASTA files should contain contigs ≥1,500 bp for best results.
-
+This step describes how viral sequences are predicted from metagenomic assemblies and assessed for completeness and contamination using geNomad and CheckV.
 ```         
+# Runs the full geNomad pipeline to identify viral genomes and MGEs from filtered contigs.
+
 genomad end-to-end \
   --cleanup \
   --conservative \
@@ -130,7 +134,10 @@ genomad end-to-end \
   genomad_output/sample \
   /path/to/genomad-db \
   --threads 16
-  
+
+# Evaluates the completeness, contamination, and host contamination of viral genomes.
+
+
 checkv end_to_end \
   viral_contigs/ \
   checkv_output/ \
@@ -138,12 +145,18 @@ checkv end_to_end \
   -d /path/to/checkv-db
 ```
 
-## High-quality viral genomes and vOTUs {#high-quality-viral-genomes-and-votus}
+## High-quality viral genomes and vOTUs
+
+This section describes the steps to filter high-quality viral genomes and cluster them into viral Operational Taxonomic Units (vOTUs) based on pairwise nucleotide similarity.
 
 Scripts to cluster the viral genomes at 95% ANI and 85% min-coveerage can be found in : <https://github.com/snayfach/MGV>
 
+--min_ani 95: defines vOTUs based on ≥95% nucleotide identity
+--min_tcov 85: subject genome must be ≥85% covered
+--min_qcov 0: no coverage threshold for the query genome (relaxed for inclusivity)
+
 ```         
-# Filter Medium and High-quality genomes
+# Extracts contigs that meet predefined quality thresholds (e.g., ≥50% completeness) based on CheckV results.
 
 seqkit grep \
   -n \
@@ -151,13 +164,15 @@ seqkit grep \
   contigs.fasta \
   > filtered_contigs.fasta
 
-#Cluster vOTUs
+# Creates a nucleotide BLAST database from the filtered viral contigs.
 
 makeblastdb \
   -in contigs.fasta \
   -dbtype nucl \
   -out blast_db/contigs_db
-  
+
+# Computes pairwise nucleotide similarity between viral genomes.
+
 blastn \
   -query viral_contigs.fasta \
   -db blast_db/nt \
@@ -166,10 +181,13 @@ blastn \
   -out results/blast_hits.tsv \
   -num_threads 20
 
+# Computes Average Nucleotide Identity (ANI) from the BLAST output.
+
 anicalc.py \
   -i blast_hits.tsv \
   -o ani_summary.tsv
 
+# Clusters genomes based on ANI and coverage thresholds using aniclust.py.
 
 aniclust.py \
   --fna genomes/fna_files \
@@ -180,19 +198,20 @@ aniclust.py \
   --min_qcov 0
 ```
 
-## Cluster family and genus {#cluster-family-and-genus}
+## Cluster family and genus
+This section describes the steps to compute Average Amino Acid Identity (AAI) between viral genomes and cluster them into genus-level groups using the Markov Clustering algorithm (MCL).
 
 This script filters AAI-based pairwise comparisons to retain only those with sufficient biological similarity. It is useful for defining genome clusters or taxonomic thresholds based on shared protein content and identity. Script can be found in : <https://github.com/snayfach/MGV>
 
 ```         
-# Create a blast+ databasa using your viral contigs
+# Builds a DIAMOND-formatted protein database from viral protein sequences.
 
 diamond makedb \
   --in proteins.faa \
   --db diamond_db/protein_db \
   --threads 10
   
-# Compute AAI from BLAST results
+# Aligns viral proteins against the database to generate pairwise comparisons for AAI calculation.
 
 diamond blastp --query %s \
                --db %s \
@@ -203,6 +222,8 @@ diamond blastp --query %s \
                --max-target-seqs 10000 \
                --query-cover 50 \
                --subject-cover 50
+               
+# Processes BLAST output to compute Average Amino Acid Identity between genomes.
 
 python amino_acid_identity.py \
   --in_faa proteins/sample.faa \
@@ -218,7 +239,7 @@ python filter_aai.py \
   --min_aai 40 \
   --out_tsv results/aa_identity_filtered.tsv
 
-# Perform MCL-based clustering
+# Runs MCL on the filtered similarity matrix to define genus-level genome clusters.
 
 mcl similarity_matrix.txt \
   -te 8 \
@@ -227,34 +248,83 @@ mcl similarity_matrix.txt \
   -o mcl_clusters.txt
 ```
 
-## Taxonomic annotation {#taxonomic-annotation}
+## Taxonomic annotation
+
+This step annotates filtered viral contigs using the geNomad annotate module, providing gene predictions, functional annotations, and taxonomic classifications. --lenient-taxonomy: avoids pipeline interruption due to uncertain or unclassified taxonomic assignments
 
 ```         
-genomad annotate --cleanup --lenient-taxonomy %s %s %s --threads 16
+genomad annotate \
+  --cleanup \
+  --lenient-taxonomy \
+  filtered_viral_contigs.fasta \
+  annotation_results/ \
+  /path/to/genomad-db \
+  --threads 16
 ```
 
-## Predict host and lifestyle {#predict-host-and-lifestyle}
+## Predict host and lifestyle
 
+
+These steps use iPHoP to predict bacterial hosts for viral contigs, and BACPHLIP to infer viral lifestyles (lytic vs temperate). Splitting the dataset allows parallel or distributed prediction.
 ```         
-# Split dataset so you can run faster
-iphop split --input_file %s --split_dir %s
+# Splits a multi-FASTA file into smaller contig files.
 
-# Run iPhop
-iphop predict -t 20 --fa_file %s --db_dir %s --out_dir %s
+iphop split \
+  --input_file viral_contigs.fasta \
+  --split_dir split_contigs/
+  
+# Runs host prediction for batch files against the iPHoP database.
+
+iphop predict \
+  -t 20 \
+  --fa_file split_contigs/contig_001.fasta \
+  --db_dir /path/to/iphop_db \
+  --out_dir iphoppredictions/contig_001
+
+# Uses protein content to predict the lifestyle of each phage.
 
 bacphlip -i %s --multi_fasta
 ```
 
-## Map reads {#map-reads}
+## Map reads
 
+Maps metagenomic reads to viral contigs and calculates normalized abundances.
+
+--methods rpkm: calculates Reads Per Kilobase per Million mapped reads
+TMPDIR=. ensures temp files stay in current directory (useful on shared clusters)
+Filters ensure only high-confidence mappings are considered
 ```         
-TMPDIR=. coverm contig --methods rpkm -t 14 -c %s %s -r %s -o %s --min-read-percent-identity 90 --min-read-aligned-percent 75 --min-covered-fraction 75
+TMPDIR=. coverm contig \
+  --methods rpkm \
+  -t 14 \
+  -c assemblies/contigs.fasta \
+  alignments/sample.bam \
+  -r assemblies/contigs.fasta \
+  -o coverage/sample_rpkm.tsv \
+  --min-read-percent-identity 90 \
+  --min-read-aligned-percent 75 \
+  --min-covered-fraction 75
 ```
 
-## Functional annotation {#functional-annotation}
+## Functional annotation
 
-```         
-pharokka.py -i %s -o %s -d %s -g prodigal-gv -m -t 14
+This steps predicts and functional anotate the genes from phages using a database tailored for viral genomes.
+Additionally, DefenseFinder is useto give genomic context and type of detected bacterial defense systems in the phages.
+```
+# Runs gene prediction and functional annotation on phage contigs using a database tailored for viral genomes.
 
-defense-finder run %s -o %s -a
+pharokka.py \
+  -i phage_contigs.fasta \
+  -o pharokka_output \
+  -d /path/to/pharokka_db \
+  -g prodigal-gv \
+  -m \
+  -t 14
+
+# Scans contigs for known anti-phage defense systems (e.g., CRISPR, BREX, DISARM).
+
+defense-finder run \
+  assemblies/contigs.fasta \
+  -o defense_results/ \
+  -a
 ```
