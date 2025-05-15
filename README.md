@@ -41,12 +41,20 @@ Bioinformatic tools were installed using Conda or Mamba.
 
 ## Download metagenomic samples {#download-metagenomic-samples}
 
-Samples were download using the [SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID provided in the [metadata data-frame](https://github.com/SebasSaenz/chickenphages/tree/main/data_availability). Requesting more than 1 thread can crash the process. Sa
+Samples were download using the [SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID provided in the [metadata data-frame](https://github.com/SebasSaenz/chickenphages/tree/main/data_availability). Requesting more than 1 thread can crash the process.
 
 ```         
-prefetch sample_id -O sra_temp --verify yes --max-size 50G
-
-fasterq-dump sra_temp/sample_id --split-files --outdir out_dir --threads 1
+prefetch \
+  SRR12345678 \
+  -O sra_temp \
+  --verify yes \
+  --max-size 50G
+  
+fasterq-dump \
+  sra_temp/SRR12345678 \
+  --split-files \
+  --outdir fastq_files \
+  --threads 4
 ```
 
 ## Quality control and host removal {#quality-control-and-host-removal}
@@ -56,81 +64,136 @@ fasterq-dump sra_temp/sample_id --split-files --outdir out_dir --threads 1
 
 fastqc \
   -q \
-  -t {THREADS} \
-  -o {OUTPUT_DIR} \
+  -t 4 \
+  -o out_dir \
   -f fastq \
-  {READ1} \
-  {READ2}
+  reads/sample_R1.fq.gz \
+  reads/sample_R2.fq.gz
   
 # Create index
 
 bowtie2-build \
-  --threads {THREADS} \
-  {REFERENCE_FASTA} \
-  {INDEX_PREFIX}
+  --threads 8 \
+  reference_genome.fasta \
+  index/host
   
 # Read QC and host DNA removal
 
 trim_galore \
   --paired \
-  -j {THREADS} \
-  {READ1} \
-  {READ2}
+  -j 4 \
+  reads/sample_R1.fq.gz \
+  reads/sample_R2.fq.gz
   
 # Remove host DNA
 
 bowtie2 \
-  -p {THREADS} \
-  -x {INDEX_DIR}/host \
-  -1 {READS_DIR}/*_val_1.fq.gz \
-  -2 {READS_DIR}/*_val_2.fq.gz \
-  --un-conc-gz {OUTPUT_DIR}/no_host \
-  > {OUTPUT_DIR}/host.sam
+  -p 8 \
+  -x index/host \
+  -1 out_dir/sample_val_1.fq.gz \
+  -2 out_dir/sample_val_2.fq.gz \
+  --un-conc-gz out_dir/no_host \
+  > out_dir/host.sam
 ```
 
 ## Assembly and filtering {#assembly-and-filtering}
 
 ```         
-#
-megahit -1 $CR1 -2 $CR2 -o $MH/$name -t {THREADS} --presets meta-sensitive
+# Create the assemblies
 
+megahit \
+  -1 clean_reads/sample_R1.fq.gz \
+  -2 clean_reads/sample_R2.fq.gz \
+  -o megahit_results/sample_001 \
+  -t 8 \
+  --presets meta-sensitive
+  
 # Filter contigs shorter than 5kb
-bbduk.sh in=%s out=%s minlen=5000
+
+bbduk.sh \
+  in=megahit_results/sample_contigs.fasta \
+  out=filtered/sample_filtered.fasta \
+  minlen=5000
 ```
 
 ## Virus identification and quality {#virus-identification-and-quality}
 
-```         
-genomad end-to-end --cleanup --conservative %s %s %s --threads 16
+--cleanup: removes intermediate files to save space. --conservative: uses stricter thresholds for virus identification. genomad-db must be downloaded and the path correctly specified.
 
-checkv end_to_end %s %s -t 18 -d %s
+`checkv end_to_end` performs quality assessment and completeness estimation of viral genomes. Ensure the CheckV database is downloaded and path is correctly set. Input FASTA files should contain contigs ≥1,500 bp for best results.
+
+```         
+genomad end-to-end \
+  --cleanup \
+  --conservative \
+  assemblies/sample_filtered_contigs.fasta \
+  genomad_output/sample \
+  /path/to/genomad-db \
+  --threads 16
+  
+checkv end_to_end \
+  viral_contigs/ \
+  checkv_output/ \
+  -t 18 \
+  -d /path/to/checkv-db
 ```
 
 ## High-quality viral genomes and vOTUs {#high-quality-viral-genomes-and-votus}
 
+Scripts to cluster the viral genomes at 95% ANI and 85% min-coveerage can be found in : <https://github.com/snayfach/MGV>
+
 ```         
 # Filter Medium and High-quality genomes
-seqkit grep -n -f %s %s > %s
+
+seqkit grep \
+  -n \
+  -f ids.txt \
+  contigs.fasta \
+  > filtered_contigs.fasta
 
 #Cluster vOTUs
-makeblastdb -in %s -dbtype nucl -out %s
 
-blastn -query %s -db %s -outfmt '6 std qlen slen' -max_target_seqs 10000 -out %s -num_threads 20
+makeblastdb \
+  -in contigs.fasta \
+  -dbtype nucl \
+  -out blast_db/contigs_db
+  
+blastn \
+  -query viral_contigs.fasta \
+  -db blast_db/nt \
+  -outfmt '6 std qlen slen' \
+  -max_target_seqs 10000 \
+  -out results/blast_hits.tsv \
+  -num_threads 20
 
-anicalc.py -i %s -o %s
+anicalc.py \
+  -i blast_hits.tsv \
+  -o ani_summary.tsv
 
-aniclust.py --fna %s --ani %s --out %s --min_ani 95 --min_tcov 85 --min_qcov 0
 
-seqkit grep -n -f %s %s > %s
+aniclust.py \
+  --fna genomes/fna_files \
+  --ani ani_summary.tsv \
+  --out clustering_results \
+  --min_ani 95 \
+  --min_tcov 85 \
+  --min_qcov 0
 ```
 
 ## Cluster family and genus {#cluster-family-and-genus}
 
+This script filters AAI-based pairwise comparisons to retain only those with sufficient biological similarity. It is useful for defining genome clusters or taxonomic thresholds based on shared protein content and identity. Script can be found in : <https://github.com/snayfach/MGV>
+
 ```         
 # Create a blast+ databasa using your viral contigs
-diamond makedb --in %s --db %s --threads 10
 
+diamond makedb \
+  --in proteins.faa \
+  --db diamond_db/protein_db \
+  --threads 10
+  
 # Compute AAI from BLAST results
+
 diamond blastp --query %s \
                --db %s \
                --out %s.tsv \
@@ -141,15 +204,27 @@ diamond blastp --query %s \
                --query-cover 50 \
                --subject-cover 50
 
-/beegfs/work/workspace/ws/ho_kezau83-phage_db-0/amino_acid_identity.py --in_faa %s --in_blast %s --out_tsv %s
-
+python amino_acid_identity.py \
+  --in_faa proteins/sample.faa \
+  --in_blast blast_results/sample_vs_db.tsv \
+  --out_tsv results/aa_identity.tsv
+  
 # Filter edges and prepare MCL inputs GENUS
 
-python /beegfs/work/workspace/ws/ho_kezau83-phage_db-0/filter_aai.py --in_aai %s --min_percent_shared 20 --min_num_shared 16 --min_aai 40 --out_tsv %s
+python filter_aai.py \
+  --in_aai results/aa_identity.tsv \
+  --min_percent_shared 20 \
+  --min_num_shared 16 \
+  --min_aai 40 \
+  --out_tsv results/aa_identity_filtered.tsv
 
 # Perform MCL-based clustering
 
-mcl %s -te 8 -I 2.0 --abc -o %s
+mcl similarity_matrix.txt \
+  -te 8 \
+  -I 2.0 \
+  --abc \
+  -o mcl_clusters.txt
 ```
 
 ## Taxonomic annotation {#taxonomic-annotation}
