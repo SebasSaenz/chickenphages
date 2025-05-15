@@ -2,6 +2,7 @@ data/**
 plots/**
 output/**
 output_clean/**
+publication/**
 
 /workflows/.ipynb_checkpoints
 **/.ipynb_checkpoints
