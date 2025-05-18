@@ -4,6 +4,7 @@ output/**
 output_clean/**
 publication/**
 clean_data/**
+code/**
 
 /workflows/.ipynb_checkpoints
 **/.ipynb_checkpoints
