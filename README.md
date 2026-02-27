@@ -1,51 +1,84 @@
+---
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
 # Diversity of phages in the chicken gut
 
-This repository contains the supporting code for the manuscript **"A metagenomic collection of 19,778 viruses reveals the diverse virome of the chicken gut"**
+This repository contains the supporting code for the manuscript **"The
+chicken gut virome: spatial structuring and extensive diversity of
+19,778 viral populations"**
 
-Johan S. Sáenz^1,2^, Timur Yergaliyev^1,2^, Bibiana Rios-Galicia^1,2^, Jana Seifert^1,2^ & Amélia Camarinha-Silva^1,2^
+Johan S. Sáenz^1,2^, Timur Yergaliyev^1,2^, Bibiana Rios-Galicia^1,2^,
+Jana Seifert^1,2^ & Amélia Camarinha-Silva^1,2^
 
-^1^Institute of Animal Science, University of Hohenheim, Emil-Wolff-Str. 6-10, 70593 Stuttgart, Germany
+^1^Institute of Animal Science, University of Hohenheim, Emil-Wolff-Str.
+6-10, 70593 Stuttgart, Germany
 
-^2^HoLMiR—Hohenheim Center for Livestock Microbiome Research, University of Hohenheim, Leonore-Blosser-Reisen Weg 3, 70593 Stuttgart, Germany
+^2^HoLMiR—Hohenheim Center for Livestock Microbiome Research, University
+of Hohenheim, Leonore-Blosser-Reisen Weg 3, 70593 Stuttgart, Germany
 
-You can read the preprint here: https://www.researchsquare.com/article/rs-6671648/v1
+You can read the preprint here:
+<https://www.researchsquare.com/article/rs-6671648/v1>
 
 ## Data availability
 
-The collection of 47,092 viral genomes and the 19,778 dereplicated species-level vOTUs can be found in Zenodo, <https://zenodo.org/records/15063554>. Metagenomic samples used in this study are publicly available and can be downloaded using the provided Bioproject IDs in data folder.
+The collection of 47,092 viral genomes and the 19,778 dereplicated
+species-level vOTUs can be found in Zenodo,
+<https://zenodo.org/records/15063554>. Metagenomic samples used in this
+study are publicly available and can be downloaded using the provided
+Bioproject IDs in data folder.
 
 ## Sample summary
 
-In total we collected 1,514 chicken gut metagenomic samples from 15 different countries, including samples from faeces and 6 gut regions.
+In total we collected 1,514 chicken gut metagenomic samples from 15
+different countries, including samples from faeces and 6 gut regions.
 
 ![](plots_repo/summary_samples.png)
 
 ## Workflow
 
-Data was analyse using the High Performance and Cloud Computing BINAC at the Zentrum für Datenverarbeitung of the University of Tübingen, at the state of Baden-Württemberg, Germany.
+Data was analyse using the High Performance and Cloud Computing BINAC at
+the Zentrum für Datenverarbeitung of the University of Tübingen, at the
+state of Baden-Württemberg, Germany.
 
 Bioinformatic tools were installed using Conda or Mamba.
 
 ### Table of Contents
 
 1.  [Download metagenomic samples](#download-metagenomic-samples)
-2.  [Quality control and host removal](#quality-control-and-host-removal)
+2.  [Quality control and host
+    removal](#quality-control-and-host-removal)
 3.  [Assembly and filtering](#assembly-and-filtering)
-4.  [Virus identification and quality](#virus-identification-and-quality)
-5.  [High-quality viral genomes and vOTUs](#high-quality-viral-genomes-and-vOTUs)
+4.  [Virus identification and
+    quality](#virus-identification-and-quality)
+5.  [High-quality viral genomes and
+    vOTUs](#high-quality-viral-genomes-and-vOTUs)
 6.  [Cluster family and genus](#cluster-family-and-genus)
 7.  [Taxonomic annotation](#taxonomic-annotation)
 8.  [Predict host and lifestyle](#predict-host-and-lifestyle)
 9.  [Map reads](#map-reads)
 10. [Functional annotation](#functional-annotation)
+11. [*Crassvirales* clustering](#crass-clustering)
+12. [*Crassvirales* clade assigment](#crass-clade)
+13. [*Crassvirales* proteomic tree](#crass-tree)
 
 ------------------------------------------------------------------------
 
-## Download metagenomic samples 
+## Download metagenomic samples {#download-metagenomic-samples}
 
-Samples were download using the [SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID provided in the [metadata data-frame](https://github.com/SebasSaenz/chickenphages/tree/main/data_availability). Requesting more than 1 thread can crash the process.
+Samples were download using the
+[SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID
+provided in the [metadata
+data-frame](https://github.com/SebasSaenz/chickenphages/tree/main/data_availability).
+Requesting more than 1 thread can crash the process.
 
-This pipeline retrieves raw sequencing data from the SRA and converts it to FASTQ format. Prefetch downloads the .sra file to a temporary directory (sra_temp), with integrity verification and a file size limit of 50 GB. fasterq-dump converts the .sra file into paired-end FASTQ files, saved in fastq_files.
+This pipeline retrieves raw sequencing data from the SRA and converts it
+to FASTQ format. Prefetch downloads the .sra file to a temporary
+directory (sra_temp), with integrity verification and a file size limit
+of 50 GB. fasterq-dump converts the .sra file into paired-end FASTQ
+files, saved in fastq_files.
 
 ```         
 prefetch \
@@ -61,9 +94,10 @@ fasterq-dump \
   --threads 4
 ```
 
-## Quality control and host removal
+## Quality control and host removal {#quality-control-and-host-removal}
 
-This step assess read quality, trim low-quality bases and adapters, and remove host-derived sequences using the reference genome.
+This step assess read quality, trim low-quality bases and adapters, and
+remove host-derived sequences using the reference genome.
 
 ```         
 # Generates a comprehensive report on the quality of raw reads (e.g., per-base quality, GC content, duplication levels).
@@ -102,9 +136,12 @@ bowtie2 \
   > out_dir/host.sam
 ```
 
-## Assembly and filtering
+## Assembly and filtering {#assembly-and-filtering}
 
-This step assemble metagenomic reads and filtered out short contigs that are typically less informative for downstream analyses like binning, annotation, or viral detection.
+This step assemble metagenomic reads and filtered out short contigs that
+are typically less informative for downstream analyses like binning,
+annotation, or viral detection.
+
 ```         
 # Uses MEGAHIT to assemble high-quality paired-end reads into contigs using parameters optimized for complex microbial communities.
 
@@ -123,9 +160,12 @@ bbduk.sh \
   minlen=5000
 ```
 
-## Virus identification and quality
+## Virus identification and quality {#virus-identification-and-quality}
 
-This step describes how viral sequences are predicted from metagenomic assemblies and assessed for completeness and contamination using geNomad and CheckV.
+This step describes how viral sequences are predicted from metagenomic
+assemblies and assessed for completeness and contamination using geNomad
+and CheckV.
+
 ```         
 # Runs the full geNomad pipeline to identify viral genomes and MGEs from filtered contigs.
 
@@ -147,15 +187,18 @@ checkv end_to_end \
   -d /path/to/checkv-db
 ```
 
-## High-quality viral genomes and vOTUs
+## High-quality viral genomes and vOTUs {#high-quality-viral-genomes-and-votus}
 
-This section describes the steps to filter high-quality viral genomes and cluster them into viral Operational Taxonomic Units (vOTUs) based on pairwise nucleotide similarity.
+This section describes the steps to filter high-quality viral genomes
+and cluster them into viral Operational Taxonomic Units (vOTUs) based on
+pairwise nucleotide similarity.
 
-Scripts to cluster the viral genomes at 95% ANI and 85% min-coveerage can be found in : <https://github.com/snayfach/MGV>
+Scripts to cluster the viral genomes at 95% ANI and 85% min-coveerage
+can be found in : <https://github.com/snayfach/MGV>
 
---min_ani 95: defines vOTUs based on ≥95% nucleotide identity
---min_tcov 85: subject genome must be ≥85% covered
---min_qcov 0: no coverage threshold for the query genome (relaxed for inclusivity)
+--min_ani 95: defines vOTUs based on ≥95% nucleotide identity --min_tcov
+85: subject genome must be ≥85% covered --min_qcov 0: no coverage
+threshold for the query genome (relaxed for inclusivity)
 
 ```         
 # Extracts contigs that meet predefined quality thresholds (e.g., ≥50% completeness) based on CheckV results.
@@ -200,10 +243,16 @@ aniclust.py \
   --min_qcov 0
 ```
 
-## Cluster family and genus
-This section describes the steps to compute Average Amino Acid Identity (AAI) between viral genomes and cluster them into genus-level groups using the Markov Clustering algorithm (MCL).
+## Cluster family and genus {#cluster-family-and-genus}
 
-This script filters AAI-based pairwise comparisons to retain only those with sufficient biological similarity. It is useful for defining genome clusters or taxonomic thresholds based on shared protein content and identity. Script can be found in : <https://github.com/snayfach/MGV>
+This section describes the steps to compute Average Amino Acid Identity
+(AAI) between viral genomes and cluster them into genus-level groups
+using the Markov Clustering algorithm (MCL).
+
+This script filters AAI-based pairwise comparisons to retain only those
+with sufficient biological similarity. It is useful for defining genome
+clusters or taxonomic thresholds based on shared protein content and
+identity. Script can be found in : <https://github.com/snayfach/MGV>
 
 ```         
 # Builds a DIAMOND-formatted protein database from viral protein sequences.
@@ -250,9 +299,12 @@ mcl similarity_matrix.txt \
   -o mcl_clusters.txt
 ```
 
-## Taxonomic annotation
+## Taxonomic annotation {#taxonomic-annotation}
 
-This step annotates filtered viral contigs using the geNomad annotate module, providing gene predictions, functional annotations, and taxonomic classifications. --lenient-taxonomy: avoids pipeline interruption due to uncertain or unclassified taxonomic assignments
+This step annotates filtered viral contigs using the geNomad annotate
+module, providing gene predictions, functional annotations, and
+taxonomic classifications. --lenient-taxonomy: avoids pipeline
+interruption due to uncertain or unclassified taxonomic assignments
 
 ```         
 genomad annotate \
@@ -264,10 +316,12 @@ genomad annotate \
   --threads 16
 ```
 
-## Predict host and lifestyle
+## Predict host and lifestyle {#predict-host-and-lifestyle}
 
+These steps use iPHoP to predict bacterial hosts for viral contigs, and
+BACPHLIP to infer viral lifestyles (lytic vs temperate). Splitting the
+dataset allows parallel or distributed prediction.
 
-These steps use iPHoP to predict bacterial hosts for viral contigs, and BACPHLIP to infer viral lifestyles (lytic vs temperate). Splitting the dataset allows parallel or distributed prediction.
 ```         
 # Splits a multi-FASTA file into smaller contig files.
 
@@ -288,13 +342,15 @@ iphop predict \
 bacphlip -i %s --multi_fasta
 ```
 
-## Map reads
+## Map reads {#map-reads}
 
-Maps metagenomic reads to viral contigs and calculates normalized abundances.
+Maps metagenomic reads to viral contigs and calculates normalized
+abundances.
 
 --methods rpkm: calculates Reads Per Kilobase per Million mapped reads
-TMPDIR=. ensures temp files stay in current directory (useful on shared clusters)
-Filters ensure only high-confidence mappings are considered
+TMPDIR=. ensures temp files stay in current directory (useful on shared
+clusters) Filters ensure only high-confidence mappings are considered
+
 ```         
 TMPDIR=. coverm contig \
   --methods rpkm \
@@ -308,11 +364,14 @@ TMPDIR=. coverm contig \
   --min-covered-fraction 75
 ```
 
-## Functional annotation
+## Functional annotation {#functional-annotation}
 
-This steps predicts and functional anotate the genes from phages using a database tailored for viral genomes.
-Additionally, DefenseFinder is useto give genomic context and type of detected bacterial defense systems in the phages.
-```
+This steps predicts and functional anotate the genes from phages using a
+database tailored for viral genomes. Additionally, DefenseFinder is
+useto give genomic context and type of detected bacterial defense
+systems in the phages.
+
+```         
 # Runs gene prediction and functional annotation on phage contigs using a database tailored for viral genomes.
 
 pharokka.py \
@@ -329,4 +388,45 @@ defense-finder run \
   assemblies/contigs.fasta \
   -o defense_results/ \
   -a
+```
+
+## *Crassvirales* clustering {#crass-clustering}
+
+```         
+# Create a pre-alignment filter.
+
+vclust prefilter -i crass_votu.fasta -o fltr.txt --min-ident 0.7
+
+# Calculate ANI measures for genome pairs specified in the filter.
+
+vclust align -i crass_votu.fasta -o ani.tsv --filter fltr.txt
+
+# Calculate ANI measures for genome pairs specified in the filter.
+
+vclust cluster -i ani.tsv -o species.tsv --ids ani.ids.tsv --algorithm complete \
+--metric tani --tani 0.95
+
+vclust cluster -i ani.tsv -o genus.tsv --ids ani.ids.tsv --algorithm complete \
+--metric tani --tani 0.70
+```
+
+## *Crassvirales* clade assigment {#crass-clade}
+
+```         
+# Run VC cluster via vContacnt3
+
+vcontact3 run --nucleotide crass_votu.fasta \
+    --output vcontact \
+    --db-path DB/vcontact \
+    --db-version 230 \
+    --exports profiles \
+    --target-rank order family
+```
+
+### *Crassvirales* proteomic tree {#crass-tree}
+
+```         
+# Viral genome sequences based on genome-wide sequence similarities computed by tBLASTx
+
+ViPTreeGen --ncpus 20 crass_votu.fasta output_folder
 ```
