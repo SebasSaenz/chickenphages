@@ -60,7 +60,7 @@ Bioinformatic tools were installed using Conda or Mamba.
 
 ------------------------------------------------------------------------
 
-## Download metagenomic samples {#download-metagenomic-samples}
+## Download metagenomic samples
 
 Samples were download using the
 [SRA-toolkit](https://github.com/ncbi/sra-tools) v3.1.1 and the SRA ID
