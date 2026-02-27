@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 # Diversity of phages in the chicken gut
 
 This repository contains the supporting code for the manuscript **"The
