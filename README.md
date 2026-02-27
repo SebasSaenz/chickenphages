@@ -88,7 +88,7 @@ fasterq-dump \
   --threads 4
 ```
 
-## Quality control and host removal {#quality-control-and-host-removal}
+## Quality control and host removal
 
 This step assess read quality, trim low-quality bases and adapters, and
 remove host-derived sequences using the reference genome.
@@ -130,7 +130,7 @@ bowtie2 \
   > out_dir/host.sam
 ```
 
-## Assembly and filtering {#assembly-and-filtering}
+## Assembly and filtering
 
 This step assemble metagenomic reads and filtered out short contigs that
 are typically less informative for downstream analyses like binning,
@@ -154,7 +154,7 @@ bbduk.sh \
   minlen=5000
 ```
 
-## Virus identification and quality {#virus-identification-and-quality}
+## Virus identification and quality
 
 This step describes how viral sequences are predicted from metagenomic
 assemblies and assessed for completeness and contamination using geNomad
@@ -181,7 +181,7 @@ checkv end_to_end \
   -d /path/to/checkv-db
 ```
 
-## High-quality viral genomes and vOTUs {#high-quality-viral-genomes-and-votus}
+## High-quality viral genomes and vOTUs
 
 This section describes the steps to filter high-quality viral genomes
 and cluster them into viral Operational Taxonomic Units (vOTUs) based on
@@ -237,7 +237,7 @@ aniclust.py \
   --min_qcov 0
 ```
 
-## Cluster family and genus {#cluster-family-and-genus}
+## Cluster family and genus
 
 This section describes the steps to compute Average Amino Acid Identity
 (AAI) between viral genomes and cluster them into genus-level groups
@@ -293,7 +293,7 @@ mcl similarity_matrix.txt \
   -o mcl_clusters.txt
 ```
 
-## Taxonomic annotation {#taxonomic-annotation}
+## Taxonomic annotation
 
 This step annotates filtered viral contigs using the geNomad annotate
 module, providing gene predictions, functional annotations, and
@@ -310,7 +310,7 @@ genomad annotate \
   --threads 16
 ```
 
-## Predict host and lifestyle {#predict-host-and-lifestyle}
+## Predict host and lifestyle
 
 These steps use iPHoP to predict bacterial hosts for viral contigs, and
 BACPHLIP to infer viral lifestyles (lytic vs temperate). Splitting the
@@ -336,7 +336,7 @@ iphop predict \
 bacphlip -i %s --multi_fasta
 ```
 
-## Map reads {#map-reads}
+## Map reads
 
 Maps metagenomic reads to viral contigs and calculates normalized
 abundances.
@@ -358,7 +358,7 @@ TMPDIR=. coverm contig \
   --min-covered-fraction 75
 ```
 
-## Functional annotation {#functional-annotation}
+## Functional annotation
 
 This steps predicts and functional anotate the genes from phages using a
 database tailored for viral genomes. Additionally, DefenseFinder is
@@ -384,7 +384,7 @@ defense-finder run \
   -a
 ```
 
-## *Crassvirales* clustering {#crass-clustering}
+## *Crassvirales* clustering
 
 ```         
 # Create a pre-alignment filter.
@@ -404,7 +404,7 @@ vclust cluster -i ani.tsv -o genus.tsv --ids ani.ids.tsv --algorithm complete \
 --metric tani --tani 0.70
 ```
 
-## *Crassvirales* clade assigment {#crass-clade}
+## *Crassvirales* clade assigment
 
 ```         
 # Run VC cluster via vContacnt3
@@ -417,7 +417,7 @@ vcontact3 run --nucleotide crass_votu.fasta \
     --target-rank order family
 ```
 
-### *Crassvirales* proteomic tree {#crass-tree}
+### *Crassvirales* proteomic tree
 
 ```         
 # Viral genome sequences based on genome-wide sequence similarities computed by tBLASTx
